@@ -403,7 +403,7 @@ catch (error) {
 ```
 
 Now, finally on to the internal methods. This is something that my friend Jake pointed out to me that I'm not sure I would've seen on my own:
-First off, I'm finally seeing some javadoc explaining what the **** this **** is doing. I realize I'm being dramatic here but it's been hard reading the code to this point, I could use some javadoc.
+First off, I'm finally seeing some javadoc explaining what the heck this code is doing. I realize I'm being dramatic here but it's been hard reading the code to this point, I could use some javadoc.
 
 This function, like it says, checks for `ValidGPSInput`:
 It seems to be written decently well too.
