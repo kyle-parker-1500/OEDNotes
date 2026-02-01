@@ -317,3 +317,160 @@ if (!defaultGraphicUnitId) {
 meter[24] = defaultGraphicUnitId;
 ```
 
+Let's move on to the next section. This is the next day and after a conversation with a good friend who is a more experienced developer than I. He has shed some light on some of the helper functions that are being called, which I will get to after I finish analyzing this `for` loop.
+
+I decided to take most of the rest of the for loop leaving out only the catch statement. Let's start: This if statement is large, with several nested statements inside. Given that, I'm wondering if it would be *possible* to refactor this logic so there's only one `if` statement. That would make the code significantly more readable.
+
+In this section of the code it appears we're calling a function `normalizeBoolean(<arg>)` which returns a boolean value. That value is checked by the `if statment`. The argument that's passed is `req.body.update`, I'm going to go out on a limb here and say that it requires the body to update. Now, what that means... I don't know. No clue. Hope to figure it out someday, but what I can say is that it appears to tie into the whole async/await part of the code (therefore it's tying into the multithreaded section). Maybe we can treat this like await, because it requires another section of the code to update for it to evaluate as true. One thing I can say for certain `normalizeBoolean()` is not a member function of this file.
+
+`identifierOfMeter` is a member variable who's value appears to use the same package notation that `normalizeBoolean()` is requesting. This part of the code appears to be updating new meters. I'm not sure if touching this part of the code would be detrimental to the codebase right now, so I think I'll try to rewrite this later. If that random information is false (I don't know what that means either), then it checks if `meter[7]` has a value/exists. If there is no identifier given for that specific meter, use `identifierOfMeter` as the name. The one thing that I don't understand about this section of code is that if `meter[7]` doesn't exist, then `identifierOfMeter` will be set to `meter[0]`. If it does exist then `identifierOfMeter` will be set to `meter[7]`. I guess I would need to understand the type of data that `identifierOfMeter` is storing, and the type of data that `meter[0]` & `meter[7]` are storing.
+
+Wait, I just realized something:
+### Note to Kyle for Later ###
+**Come back and double check that this logic works to replace the current logic in the code**
+```Js
+// We can rewrite this check like this:
+if (normalizeBoolean(req.body.update)) {
+	if (!identifierOfMeter && !meter[7]) {
+		identifierOfMeter = meter[0];
+	} else {
+		identifierOfMeter = meter[7];
+	}
+	// I couldn't completely eliminate the second if statement but I believe that I simplified the logic
+}
+```
+
+Moving on, if `identifierOfMeter` does exist:
+Then we check if `meters.length !== 1`. I've always hated this sort of check, especially if it's not necessary. Let me explain why:
+1. It's ambiguous. I don't know what this code is saying. Is it saying that `meters.length` has to `== 1` or the check fails? That may be exactly what it's saying but if it's anything else I believe that it should be providing a range of numbers to exclude.
+2. There's not another reason but I'm going to leave this in here to prove my point. It's annoying, hard to read, especially if the comments aren't necessarily clear, such as in this case.
+If `meters.length !== 1` then an error is thrown. I'm not sure why, or what type of error but if I end up refactoring this I'll get to the bottom of it.
+
+Past that, we initialize a variable `currentMeter` with (and I can't stress this enough):
+```Js
+let currentMeter; // one line
+currentMeter = // this is an anonymous inner class (I believe) but still, you could do this in one line. What's the point of 2??
+```
+`currentMeter`'s anonymous inner class awaits the return of `Meter.getByIdentifier()` which is not a function of the file. If the meter is not found, it returns an error. This code actually makes sense from what I'm reading. It also seems to be well written. No complaints from me. 
+After that we can see that `currentMeter` is `.merge`d with any number of `meter` arguments passed. Finally, `await currentMeter.update(conn)` is called which I understand except for the `conn` argument. I'm assuming it's some sort of connector, and we'll leave it at that.
+
+Actually finally, we reach the else part of our if statement. This part of the code inserts the new meter by creating a `new` `Meter` object, passing in `undefined, ...meter`. Since we're passing an undefined value I sure hope it's being handled somewhere else in the function, namely where `Meter` is created. If any error occurs we `catch` the error and throw it.
+
+```Js
+if (normalizeBoolean(req.body.update)) {
+	// Updating the new meters.
+	// First get its id.
+	let identifierOfMeter = req.body.meterIdentifier;
+	if (!identifierOfMeter) {
+		// Seems no identifier provided so use one in CSV file.
+		if (!meter[7]) {
+			// There is no identifier given for meter in CSV so use name as identifier since would be automatically set.
+			identifierOfMeter = meter[0];
+		} else {
+			identifierOfMeter = meter[7];
+		}
+	} else if (meters.length !== 1) {
+		// This error could be thrown a number of times, one per meter in CSV, but should only see one of them.
+		throw new CSVPipelineError(`Meter identifier provided (\"${identifierOfMeter}\") in request with update for meters but more than one meter in CSV so not processing`, undefined, 500);
+	}
+	let currentMeter;
+	currentMeter = await Meter.getByIdentifier(identifierOfMeter, conn)
+		.catch(error => {
+			// Did not find the meter.
+			let msg = `Meter identifier of \"${identifierOfMeter}\" does not seem to exist with update for meters and got DB error of: ${error.message}`;
+			throw new CSVPipelineError(msg, undefined, 500);
+		});
+	currentMeter.merge(...meter);
+	await currentMeter.update(conn);
+} else {
+// Inserting the new meter
+await new Meter(undefined, ...meter).insert(conn)
+	.catch(error => {
+		// Probably duplicate meter.
+		throw new CSVPipelineError(
+			`Meter name of \"${meter[0]}\" got database error of: ${error.message}`, undefined, 500);
+	}
+	);
+}
+```
+
+Wait, I lied, now we're on to the catch part. All this does is catch any error that hasn't already been thrown and refer to `internal server error` which is a fancy way of saying "We don't know what went wrong, please try again later!"
+
+```Js
+catch (error) {
+	throw new CSVPipelineError(`Failed to upload meters due to internal OED Error: ${error.message}`, undefined, 500);
+}
+```
+
+Now, finally on to the internal methods. This is something that my friend Jake pointed out to me that I'm not sure I would've seen on my own:
+First off, I'm finally seeing some javadoc explaining what the **** this **** is doing. I realize I'm being dramatic here but it's been hard reading the code to this point, I could use some javadoc.
+
+This function, like it says, checks for `ValidGPSInput`:
+It seems to be written decently well too.
+```Js
+function isValidGPSInput(input) {
+	let message = '';
+	let validGps = true;
+	if (input.indexOf(',') === -1) { // if there is no comma
+		message = 'GPS Input is missing a comma';
+		validGps = false;
+	} else if (input.indexOf(',') !== input.lastIndexOf(',')) { // if there are multiple commas
+		message = 'GPS Input has too many commas';
+		validGps = false;
+	}
+	if (validGps) {
+		// Works if value is not a number since parseFloat returns a NaN so treated as invalid later.
+		const array = input.split(',').map((value) => parseFloat(value));
+		const latitudeIndex = 0;
+		const longitudeIndex = 1;
+		const latitudeConstraint = array[latitudeIndex] >= -90 && array[latitudeIndex] <= 90;
+		const longitudeConstraint = array[longitudeIndex] >= -180 && array[longitudeIndex] <= 180;
+		const result = latitudeConstraint && longitudeConstraint;
+		if (!result) {
+			validGps = false;
+			message = 'Invalid GPS coordinate, latitude must be an integer between -90 and 90, longitude must be an integer between -180 and 180. You input: ' + input;
+		}
+	}
+	return { validGps, message };
+}
+```
+
+This code switches the longitude and latitude coordinates like what's required for inputting the data to the database. (Again, might be something nice to fix).
+```Js
+function switchGPS(gpsString) {
+	const array = gpsString.split(',');
+	return (array[1] + ',' + array[0]);
+}
+```
+You could also write it like this as I do believe there are no spaces between the commas and the coordinates:
+```Js
+function switchGPS(gpsString) {
+	const array = gpsString.split(',');
+	return (`${array[1]},${array[0]}`);
+}
+```
+
+The final internal function is this:
+It takes the `unitName`, the `expectedUnitType`, and a connector (`conn`). Now I feel like this function could be written better but I'm not sure how to do so at the moment. Maybe this is yet another thing to get back to.
+
+Anyway, this function takes those parameters, and returns a constant negative integer if `unitName` doesn't exist. I'm sure that could be improved in some dynamic manner.
+A `const` variable `unit` is set to `await Unit.getByName(unitName, conn)`. If the unit doesn't exist after that then `null` is returned. If it does, return the unit's id.
+
+```Js
+async function getUnitId(unitName, expectedUnitType, conn) {
+	// Case no unit.
+	if (!unitName) return -99;
+	// Get the unit associated with the name.
+	const unit = await Unit.getByName(unitName, conn);
+	// Return null if the unit doesn't exist or its type is different from expectation.
+	if (!unit || unit.typeOfUnit !== expectedUnitType) return null;
+	return unit.id;
+}
+```
+
+Finally we have this crucial line of code which I assume just ties this file to the rest of the codebase:
+```Js
+module.exports = uploadMeters;
+```
+
+And that's it. That's the end of the file. Hope this helped anyone who decided to read this.
