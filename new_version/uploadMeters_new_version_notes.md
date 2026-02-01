@@ -32,6 +32,8 @@ The sixth line is interesting because it's pulling from a file called `validateC
 `const { normalizeBoolean } = require('./validateCsvUploadParams');`
 validateCsvUploadParams.js appears to not actually validate the readings from the CSV, which, as I'm looking at the title of the file, actually makes a lot more sense. It's checking to see if the CSV file can be uploaded at all, not checking to see if the values contained within the CSV are bad.
 
+---
+
 This whole piece of code is meant to be 'middleware' that "uploads meters via the pipeline". This appears to be the main part of the code for this file, and it does appear to have changed from the other version.
 
 I'm going to go through each section and figure out what they do.
@@ -139,6 +141,8 @@ async function uploadMeters(req, res, filepath, conn) {
 }
 ```
 
+---
+
 This is the first section. This section creates a temporary object that gets a map of values from the csv. This is implementing what appears to be multithreading (use of `await` but I'm not nearly experienced enough in that part of js to say for sure).
 There is a `todo` in here that we could address if we fix everything else.
 ```Js
@@ -167,9 +171,11 @@ This is the same meters object but if it contains the header row it removes it b
 	// However, uploading meters is not common so slowing it down slightly seems a reasonable price to get this behavior.
 ```
 
+---
+
 Here's the bulk of the code:
 
-We will be further breaking this down into easy-to read and interpret, chunks.
+We will be further breaking this down into easy-to read and interpret- chunks.
 ```Js
 try {
 		for (let i = 0; i < meters.length; i++) {
@@ -288,6 +294,8 @@ if (gpsInput) {
 }
 ```
 
+---
+
 Here's the next section of the code. It appears we're accessing the unitName (this is where the custom energy/unit values are set). We have to get the unitId though because all the unit types are named/id'd in OED. That's where the `getUnitId()` method comes from. We can tell that it's waiting for the unit id though, due to the `await` keyword. It will pause the surrounding `async` method until it gets a response. 
 
 If the unitId is a badValue or doesn't exist then an error message is printed (maybe to the console, I don't know right now, would have to investigate `CSVPipelineError()`) and thrown.
@@ -316,6 +324,8 @@ if (!defaultGraphicUnitId) {
 // Replace the default graphic unit's name by its id.
 meter[24] = defaultGraphicUnitId;
 ```
+
+---
 
 Let's move on to the next section. This is the next day and after a conversation with a good friend who is a more experienced developer than I. He has shed some light on some of the helper functions that are being called, which I will get to after I finish analyzing this `for` loop.
 
@@ -394,6 +404,8 @@ await new Meter(undefined, ...meter).insert(conn)
 }
 ```
 
+---
+
 Wait, I lied, now we're on to the catch part. All this does is catch any error that hasn't already been thrown and refer to `internal server error` which is a fancy way of saying "We don't know what went wrong, please try again later!"
 
 ```Js
@@ -402,8 +414,9 @@ catch (error) {
 }
 ```
 
-Now, finally on to the internal methods. This is something that my friend Jake pointed out to me that I'm not sure I would've seen on my own:
-First off, I'm finally seeing some javadoc explaining what the heck this code is doing. I realize I'm being dramatic here but it's been hard reading the code to this point, I could use some javadoc.
+---
+
+Now, finally on to the internal methods. First off, I'm finally seeing some javadoc explaining what the heck this code is doing. I realize I'm being dramatic here but it's been hard reading the code to this point, I could use some javadoc.
 
 This function, like it says, checks for `ValidGPSInput`:
 It seems to be written decently well too.
@@ -435,6 +448,8 @@ function isValidGPSInput(input) {
 }
 ```
 
+---
+
 This code switches the longitude and latitude coordinates like what's required for inputting the data to the database. (Again, might be something nice to fix).
 ```Js
 function switchGPS(gpsString) {
@@ -449,6 +464,8 @@ function switchGPS(gpsString) {
 	return (`${array[1]},${array[0]}`);
 }
 ```
+
+---
 
 The final internal function is this:
 It takes the `unitName`, the `expectedUnitType`, and a connector (`conn`). Now I feel like this function could be written better but I'm not sure how to do so at the moment. Maybe this is yet another thing to get back to.
@@ -467,6 +484,8 @@ async function getUnitId(unitName, expectedUnitType, conn) {
 	return unit.id;
 }
 ```
+
+---
 
 Finally we have this crucial line of code which I assume just ties this file to the rest of the codebase:
 ```Js
