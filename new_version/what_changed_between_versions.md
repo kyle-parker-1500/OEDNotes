@@ -454,21 +454,133 @@ This version would do the same thing (hopefully) as the above version but it exc
 
 ### Notes from mentor: ###
 - If there are a lot of inline comments wonder why the code can't explain itself
-- for `validGPS` have constants -90 & 90 replaced with `const`s 
-- for `switchGPS` assign `array[0]` and `array[1]` to variables 
+- ~~for `validGPS` have constants -90 & 90 replaced with `const`s~~ 
+- ~~for `switchGPS` assign `array[0]` and `array[1]` to variables~~
 - get as far as possible in refactor and test after finishing
 - add types to javadoc and standardize format
-- add `enum` in `validateBooleanFields` between dictionary and array
+- ~~add `enum` in `validateBooleanFields` between dictionary and array~~ ## Technically done, looks wonky though :\
 	- in maybe add a function per field, keep columns separate to allow for individual changes (think about code maintainability)
 	- rather than using a for loop just call a helper function
-- what happens if the value is a number, does the csv automatically turn values into strings? (look up)
-- the accepted values list should include 0 && 1 since they're also correct boolean values
-- early return, if value is undefined then continue (before big if) and value is not a string
-- check if something is a number or a boolean too, define behavior for them that makes sense in context
+	- what happens if the value is a number, does the csv automatically turn values into strings? (look up)
+	- ~~the accepted values list should include 0 && 1 since they're also correct boolean values~~
+	- early return, if value is undefined then continue (before big if) and value is not a string
+	- check if something is a number or a boolean too, define behavior for them that makes sense in context
 - `areaInput` should be fine to include 0 (since meters have 0 as an option) don't have to include it though
-- *keep positive conditions* don't check for negative conditions so -> `!(typeof value === 'string' || value === undefined)` -> should be `(typeof value === 'string' || value === undefined)`
+- ~~*keep positive conditions* don't check for negative conditions so -> `!(typeof value === 'string' || value === undefined)` -> should be `(typeof value === 'string' || value === undefined)`~~ -> refactored this for `validateBooleanFields`, need to do it for the rest of the helper functions
 	- replace logic to make that function properly
 - What matters most about all the small helper functions is consistency in the logic: change 1 -> change all
 - try to rewrite `validateBooleanFields`
 - get pr out by the end of the week
+- do your 2 assignments
 
+
+`validateBooleanFields` went from this:
+```Javascript
+/**
+ * Validates all boolean-like fields for a given meter row.
+ * @param {Array} meter - A single row from the CSV file.
+ * @param {number} rowIndex - The current row index for error reporting.
+ */
+function validateBooleanFields(meter, rowIndex) {
+	// all inputs that involve a true or false all being validated together.
+	const booleanFields = {
+		2: 'enabled',
+		3: 'displayable',
+		10: 'cumulative',
+		11: 'reset',
+		18: 'end only',
+		32: 'disableChecks'
+	};
+
+	// this array has values which may be left empty
+	const booleanUndefinedAcceptable = [
+		'cumulative', 'reset', 'end only', 'disableChecks'
+	];
+
+	for (const [index, name] of Object.entries(booleanFields)) {
+		let value = meter[index];
+
+		// allows upper/lower case.
+		if ((value === '' || value === undefined) && booleanUndefinedAcceptable.includes(name)) {
+			// skip if the value is undefined
+			continue;
+		} else {
+			if (typeof value === 'string') {
+				value = value.toLowerCase();
+			}
+		}
+
+		// Validates read values to either false or true
+		if (value !== 'true' && value !== 'false' && value !== true && value !== false
+			&& value !== 'yes' && value !== 'no') {
+			throw new CSVPipelineError(
+				`Invalid input for '${name}' in row ${rowIndex + 1}: "${meter[index]}". Expected 'true' or 'false'.`,
+				undefined,
+				500
+			);
+		}
+	}
+}
+```
+
+To this:
+```Javascript
+/**
+ * Validates all boolean-like fields for a given meter row.
+ * @param {Array} meter - A single row from the CSV file.
+ * @param {Number} rowindex - the current row index for error reporting.
+ */
+function validateBooleanFields(meter, rowIndex) {
+	const booleanFields = {
+		enabled: 'enabled', // 2
+		displayable: 'displayable', //3 
+		cumulative: 'cumulative', // field 10
+		reset: 'reset', // field 11
+		end: 'end only', // 18
+		disableChecks: 'disableChecks' // 32
+	};
+	
+	// this array has values which may be left empty
+	const booleanUndefinedAcceptable = [
+		booleanFields.cumulative, booleanFields.reset, booleanFields.end, booleanFields.disableChecks
+	];
+
+	for (const [index, name] of Object.entries(booleanFields)) {
+		let value = meter[index];
+		
+		// skip if value is undefined
+		if (typeof value !== 'string' || value === '' || value === undefined) continue;
+
+		// allows upper/lower case
+		// checked for not string, empty str, and undefined already
+		if (booleanUndefinedAcceptable.includes(name)) {
+			// skip if undefined acceptable value 
+			continue;
+		} else {
+			value = value.toLowerCase();
+		}
+
+		// define list of accepted values to increase readability
+		const acceptedValues = ['true', 'false', 'yes', 'no', true, false, 1, 0];
+
+		// Validates read values to either true or false
+		if (!acceptedValues.includes(value)) {
+			throw new CSVPipelineError(
+				`Invalid input for '${name}' in row ${rowIndex+1}: "${meter[index]}". Expected 'true' or 'false'.`,
+				undefined,
+				500
+			);
+		}
+	}
+}
+```
+
+What changed:
+- Added enum like mentor asked, commented in meter field numbers
+- Redid logic, hopefully for the final time (took some from mentor)
+
+*Still need to do here*:
+- Check how CSV handles numbers -> converts them to strings? How should I be checking `acceptedValues`
+- Make enum more readable (it's gross)
+- `rowIndex` is never used so maybe figure something out with that
+	- Actually it's used in the error message but is it needed?
