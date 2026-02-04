@@ -446,6 +446,12 @@ function validateMinMaxValues(meter, rowIndex) {
 What changed:
 Added javadoc, re-did the logic.
 
+##### The logic could also look like this #####
+```Js
+if ((isNaN(minValue) || isNaN(maxValue)) || !(minValue >= Number.MIN_SAFE_INTEGER && maxValue <= Number.MAX_SAFE_INTEGER) || minValue > maxValue) 
+```
+This version would do the same thing (hopefully) as the above version but it excludes a range of numbers from the min safe integer to the max.
+
 ### Notes from mentor: ###
 - If there are a lot of inline comments wonder why the code can't explain itself
 - for `validGPS` have constants -90 & 90 replaced with `const`s 
@@ -465,3 +471,4 @@ Added javadoc, re-did the logic.
 - What matters most about all the small helper functions is consistency in the logic: change 1 -> change all
 - try to rewrite `validateBooleanFields`
 - get pr out by the end of the week
+
