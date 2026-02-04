@@ -446,8 +446,22 @@ function validateMinMaxValues(meter, rowIndex) {
 What changed:
 Added javadoc, re-did the logic.
 
-##### The logic could also look like this #####
-```Js
-if ((isNaN(minValue) || isNaN(maxValue)) || !(minValue >= Number.MIN_SAFE_INTEGER && maxValue <= Number.MAX_SAFE_INTEGER) || minValue > maxValue) 
-```
-This version would do the same thing (hopefully) as the above version but it excludes a range of numbers from the min safe integer to the max.
+### Notes from mentor: ###
+- If there are a lot of inline comments wonder why the code can't explain itself
+- for `validGPS` have constants -90 & 90 replaced with `const`s 
+- for `switchGPS` assign `array[0]` and `array[1]` to variables 
+- get as far as possible in refactor and test after finishing
+- add types to javadoc and standardize format
+- add `enum` in `validateBooleanFields` between dictionary and array
+	- in maybe add a function per field, keep columns separate to allow for individual changes (think about code maintainability)
+	- rather than using a for loop just call a helper function
+- what happens if the value is a number, does the csv automatically turn values into strings? (look up)
+- the accepted values list should include 0 && 1 since they're also correct boolean values
+- early return, if value is undefined then continue (before big if) and value is not a string
+- check if something is a number or a boolean too, define behavior for them that makes sense in context
+- `areaInput` should be fine to include 0 (since meters have 0 as an option) don't have to include it though
+- *keep positive conditions* don't check for negative conditions so -> `!(typeof value === 'string' || value === undefined)` -> should be `(typeof value === 'string' || value === undefined)`
+	- replace logic to make that function properly
+- What matters most about all the small helper functions is consistency in the logic: change 1 -> change all
+- try to rewrite `validateBooleanFields`
+- get pr out by the end of the week
